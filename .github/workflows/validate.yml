@@ -1,0 +1,49 @@
+name: Validate catalogue API and data
+on:
+  push:
+    paths-ignore:
+      - '*.zip'
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Run character and quality tests
+        run: python -m unittest discover -s tests -v
+      - name: Audit provenance, identity and images
+        run: python scripts/audit_catalogue.py
+      - name: Rebuild from JSON and verify counts
+        run: |
+          python scripts/build_database.py --output /tmp/ukiyora-rebuilt.sqlite
+          python - <<'PY'
+          import sqlite3
+          old=sqlite3.connect('data/ukiyora_characters.sqlite')
+          fresh=sqlite3.connect('/tmp/ukiyora-rebuilt.sqlite')
+          for table in ('series','characters','appearances','character_forms'):
+              assert old.execute(f'SELECT COUNT(*) FROM {table}').fetchone()==fresh.execute(f'SELECT COUNT(*) FROM {table}').fetchone(),table
+          print('Seed JSON and bundled database counts agree')
+          PY
+      - name: Validate D1 seed SQL
+        run: |
+          python scripts/export_d1_seed.py --input data/ukiyora_characters.sqlite --output /tmp/ukiyora-seed.sql
+          python - <<'PY'
+          import sqlite3
+          db=sqlite3.connect(':memory:')
+          db.executescript(open('db/schema.sql',encoding='utf8').read())
+          db.executescript(open('/tmp/ukiyora-seed.sql',encoding='utf8').read())
+          assert db.execute('SELECT COUNT(*) FROM characters').fetchone()[0]>=2002
+          PY
+      - name: Typecheck Cloudflare Worker
+        run: |
+          npm install --no-save --ignore-scripts --no-audit --no-fund
+          npm run typecheck
