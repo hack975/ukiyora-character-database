@@ -1,0 +1,99 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Ukiyora Character Catalogue",
+  "type": "object",
+  "required": [
+    "schemaVersion",
+    "generatedAt",
+    "characters"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": 1
+    },
+    "generatedAt": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "characters": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "aliases",
+          "series",
+          "continuity",
+          "verificationStatus",
+          "sourceUrls",
+          "updatedAt",
+          "forms"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1
+          },
+          "aliases": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "series": {
+            "type": "string",
+            "minLength": 1
+          },
+          "continuity": {
+            "enum": [
+              "Anime",
+              "Manga",
+              "Anime + Manga"
+            ]
+          },
+          "imageUrl": {
+            "type": "string",
+            "format": "uri"
+          },
+          "verificationStatus": {
+            "enum": [
+              "approved",
+              "verified",
+              "provisional"
+            ]
+          },
+          "sourceUrls": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uri"
+            }
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "forms": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "id",
+                "name",
+                "slug",
+                "continuity",
+                "verificationStatus",
+                "sourceUrls"
+              ]
+            }
+          }
+        }
+      }
+    }
+  }
+}
