@@ -7,9 +7,16 @@ import argparse,json,sqlite3
 from pathlib import Path
 
 ROOT=Path(__file__).resolve().parents[1]
-def build(destination:Path,base:Path=ROOT):
+def build(destination:Path,base:Path=ROOT,force:bool=False):
     destination.parent.mkdir(parents=True,exist_ok=True)
-    if destination.exists(): destination.unlink()
+    if destination.exists():
+        if not force:
+            raise FileExistsError(
+                f"Refusing to replace {destination}; it might contain imported characters, "
+                "reviewed feats or approved portraits. Use --output for a new file or --force "
+                "only after backing up the existing database."
+            )
+        destination.unlink()
     db=sqlite3.connect(destination)
     db.executescript((base/'db/schema.sql').read_text(encoding='utf8'))
     ss=json.loads((base/'data/series.json').read_text(encoding='utf8'))
@@ -39,4 +46,4 @@ def rebuild_fts(db):
       GROUP BY c.id''')
 
 if __name__=='__main__':
-    p=argparse.ArgumentParser();p.add_argument('--output',type=Path,default=ROOT/'data/ukiyora_characters.sqlite');a=p.parse_args();build(a.output)
+    p=argparse.ArgumentParser();p.add_argument('--output',type=Path,default=ROOT/'data/ukiyora_characters.sqlite');p.add_argument('--force',action='store_true',help='Explicitly overwrite existing DB after backup');a=p.parse_args();build(a.output,force=a.force)
