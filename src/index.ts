@@ -164,12 +164,16 @@ async function route(request: Request, env: Env): Promise<Response> {
       .bind(formsRoute[1]).first<{id:string,name:string}>();
     if (!character) return json({error:"Character not found"},404);
     const forms = await env.DB.prepare(`SELECT id,label,kind,continuity,arc,
-      verification_status AS verificationStatus,source_ref AS sourceRef
+      verification_status AS verificationStatus,source_ref AS sourceRef,
+      (SELECT COUNT(*) FROM feats_ledger fl WHERE fl.form_id=character_forms.id
+        AND fl.verification_status='verified' AND fl.reviewed_by IS NOT NULL
+        AND fl.primary_source_ref IS NOT NULL) AS verifiedFeatCount
       FROM character_forms WHERE character_id=? ORDER BY sort_order,label`)
       .bind(character.id).all();
     return json({ character, forms: forms.results.map((form: any) => ({
       ...form,
       selectableForVerifiedBattle: form.verificationStatus === "verified" &&
+        form.verifiedFeatCount > 0 &&
         ["baseline","transformation","state"].includes(form.kind)
     })) });
   }
