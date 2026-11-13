@@ -1,0 +1,56 @@
+name: Unpack uploaded character database
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - .github/workflows/bootstrap.yml
+      - ukiyora-character-database.zip
+permissions:
+  contents: write
+jobs:
+  unpack:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Extract and validate uploaded project ZIP
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          from zipfile import ZipFile
+          root = Path.cwd()
+          archive = root / 'ukiyora-character-database.zip'
+          prefix = 'ukiyora-character-database/'
+          if not archive.is_file():
+              raise SystemExit('Expected uploaded ZIP at repository root')
+          with ZipFile(archive) as z:
+              for item in z.infolist():
+                  if item.is_dir():
+                      continue
+                  if not item.filename.startswith(prefix):
+                      raise SystemExit('Unexpected archive path: ' + item.filename)
+                  rel = Path(item.filename[len(prefix):])
+                  if not rel.parts or '..' in rel.parts or rel.is_absolute():
+                      raise SystemExit('Unsafe archive entry')
+                  destination = root / rel
+                  if destination.exists():
+                      continue
+                  destination.parent.mkdir(parents=True, exist_ok=True)
+                  destination.write_bytes(z.read(item))
+          PY
+          python -m unittest discover -s tests -v
+      - name: Commit unpacked repository files
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          if git diff --cached --quiet; then
+            echo 'Already unpacked.'
+          else
+            git commit -m 'chore: unpack searchable Ukiyora character database'
+            git push origin HEAD:${{ github.ref_name }}
+          fi
