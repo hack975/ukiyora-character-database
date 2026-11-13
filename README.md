@@ -32,7 +32,7 @@
 ## Quick local test
 
 ```bash
-python scripts/build_database.py
+python scripts/build_database.py --output /tmp/ukiyora-test.sqlite
 python -m unittest discover -s tests -v
 ```
 
@@ -157,3 +157,6 @@ Images are **not** downloaded or granted permission automatically. The manifest'
 Do not conflate identity coverage with battle verification. `verifiedForms`, `verifiedFeats` and `approvedPortraits` may legitimately remain zero until an editor reviews and documents sources. Repeated character names across unrelated anime retain separate IDs and must not be merged solely on name matches.
 
 The `.github/workflows/validate.yml` workflow checks database integrity, reproducibility, exported D1 SQL, and Worker TypeScript. Cloudflare deployment still requires a real D1 database binding and explicit deployment authorization.
+
+### Protect imported and reviewed database records
+`scripts/build_database.py` will not overwrite an existing SQLite file by default. Rebuilding over the original file can destroy externally imported records, image approvals and reviewed evidence. Use `--output` with a new path for validation. Only use `--force` after backing up the original database and explicitly deciding to reset it.
