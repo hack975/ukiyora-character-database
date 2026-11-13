@@ -1,4 +1,4 @@
-import sqlite3,unittest
+import sqlite3,unittest,tempfile
 from pathlib import Path
 from importlib.util import spec_from_file_location,module_from_spec
 ROOT=Path(__file__).resolve().parents[1]
@@ -26,3 +26,18 @@ class CatalogueQuality(unittest.TestCase):
         audit=load_script('audit_catalogue').inspect(ROOT/'data/ukiyora_characters.sqlite')
         self.assertIsInstance(audit['duplicate_form_candidates'],list)
 if __name__=='__main__':unittest.main()
+
+class SafeRebuild(unittest.TestCase):
+    def test_rebuild_never_overwrites_without_force(self):
+        import sys
+        sys.path.insert(0,str(ROOT/'scripts'))
+        from build_database import build
+        with tempfile.TemporaryDirectory() as temp:
+            dest=Path(temp)/'db.sqlite'
+            build(dest)
+            with sqlite3.connect(dest) as db:
+                db.execute("INSERT INTO source_attributions(id,name) VALUES('editor-notes','important')")
+            with self.assertRaises(FileExistsError):
+                build(dest)
+            with sqlite3.connect(dest) as db:
+                self.assertEqual(db.execute("SELECT COUNT(*) FROM source_attributions WHERE id='editor-notes'").fetchone()[0],1)
