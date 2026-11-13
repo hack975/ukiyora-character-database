@@ -36,6 +36,8 @@ jobs:
                   rel = Path(item.filename[len(prefix):])
                   if not rel.parts or '..' in rel.parts or rel.is_absolute():
                       raise SystemExit('Unsafe archive entry')
+                  if rel.parts[0] == '.github' and len(rel.parts) > 1 and rel.parts[1] == 'workflows':
+                      continue  # GITHUB_TOKEN cannot push new workflow files.
                   destination = root / rel
                   if destination.exists():
                       continue
