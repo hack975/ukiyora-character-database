@@ -121,3 +121,39 @@ GitHub is excellent for versioned catalogue source files, review and CI. It is u
 ## Attribution and accuracy
 
 See `LICENSE-NOTICE.md`. Sources must be credited, and image use independently approved. Broad character coverage ≠ verified battle data.
+
+## V1.1 — GitHub repository improvements (2026-11-13)
+
+The GitHub repository now contains unpacked source files and the full catalogue data, not just the uploaded ZIP. **No new characters or licensed portraits were invented or added.**
+
+New API routes and options:
+
+- `GET /v1/coverage` — counts for series, characters, candidate forms, approved portraits and verified feats.
+- `GET /v1/characters?q=goku&series=<series-id>&limit=24&offset=0` — full-text search with an optional series filter and pagination.
+- `GET /v1/series/<series-id>/characters?limit=24&offset=0` — browse one series by character.
+- `GET /v1/characters/<id>/forms` — form records with explicit verification and battle selectability status.
+- `OPTIONS` — CORS preflight support for approved origins.
+
+Run integrity and image-source audits:
+
+```bash
+python scripts/audit_catalogue.py --output data/quality-report.json
+python -m unittest discover -s tests -v
+npm install
+npm run typecheck
+```
+
+Import only individually rights-reviewed portraits, using a local six-column CSV with headings
+`character_id,image_url,source_url,license,credit,approved_by`:
+
+```bash
+python scripts/import_portrait_manifest.py reviewed-images.csv --dry-run
+python scripts/import_portrait_manifest.py reviewed-images.csv
+python scripts/export_d1_seed.py
+```
+
+Images are **not** downloaded or granted permission automatically. The manifest's reviewer is a recorded assertion, not a substitute for checking actual copyright or license requirements. Changes to the SQLite database need to be exported and deployed to D1 separately; running a local importer does not automatically update the public API.
+
+Do not conflate identity coverage with battle verification. `verifiedForms`, `verifiedFeats` and `approvedPortraits` may legitimately remain zero until an editor reviews and documents sources. Repeated character names across unrelated anime retain separate IDs and must not be merged solely on name matches.
+
+The `.github/workflows/validate.yml` workflow checks database integrity, reproducibility, exported D1 SQL, and Worker TypeScript. Cloudflare deployment still requires a real D1 database binding and explicit deployment authorization.
