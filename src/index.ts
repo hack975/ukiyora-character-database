@@ -88,6 +88,18 @@ async function route(request: Request, env: Env): Promise<Response> {
     return json({ ok: true, catalogue: counts });
   }
 
+  if (path === "/v1/coverage") {
+    const metrics = await env.DB.prepare(`SELECT
+      (SELECT COUNT(*) FROM characters) AS characters,
+      (SELECT COUNT(*) FROM series) AS series,
+      (SELECT COUNT(*) FROM appearances) AS appearances,
+      (SELECT COUNT(*) FROM character_forms) AS formCandidates,
+      (SELECT COUNT(*) FROM character_forms WHERE verification_status='verified') AS verifiedForms,
+      (SELECT COUNT(*) FROM feats_ledger WHERE verification_status='verified') AS verifiedFeats,
+      (SELECT COUNT(*) FROM characters WHERE portrait_status='approved') AS approvedPortraits`).first();
+    return json({ ...metrics, note: "Discovery coverage is not combat verification. All verdicts require reviewed feats." });
+  }
+
   if (path === "/v1/series") {
     const limit = clamp(url.searchParams.get("limit"), 100, 1, 300);
     const rows = await env.DB.prepare(`SELECT s.id,s.name,COUNT(a.character_id) AS characterCount
@@ -100,17 +112,41 @@ async function route(request: Request, env: Env): Promise<Response> {
     const input = (url.searchParams.get("q") ?? "").trim().slice(0, 120);
     const q = ftsQuery(input);
     if (!q) return json({ results: [], count: 0, query: input, warning: "Provide a character or series search term" });
+    const seriesId = (url.searchParams.get("series") ?? "").trim().slice(0, 100);
     const limit = clamp(url.searchParams.get("limit"), 24, 1, 50);
     const offset = clamp(url.searchParams.get("offset"), 0, 0, 100_000);
+    const filter = ` AND (? = '' OR EXISTS (SELECT 1 FROM appearances a WHERE a.character_id=c.id AND a.series_id=?))`;
     const result = await env.DB.prepare(`${characterSelect}
       JOIN character_search_fts f ON f.character_id=c.id
-      WHERE character_search_fts MATCH ?
-      ORDER BY bm25(character_search_fts),c.name
-      LIMIT ? OFFSET ?`).bind(q, limit, offset).all<CharacterRow>();
-    const count = await env.DB.prepare(`SELECT COUNT(*) AS count FROM character_search_fts
-      WHERE character_search_fts MATCH ?`).bind(q).first<{count:number}>();
-    return json({ query: input, count: count?.count ?? 0, limit, offset,
+      WHERE character_search_fts MATCH ? ${filter}
+      ORDER BY CASE WHEN LOWER(c.name)=LOWER(?) THEN 0 ELSE 1 END,
+        bm25(character_search_fts), c.name, c.id
+      LIMIT ? OFFSET ?`).bind(q, seriesId, seriesId, input, limit, offset).all<CharacterRow>();
+    const count = await env.DB.prepare(`SELECT COUNT(*) AS count FROM character_search_fts f
+      JOIN characters c ON c.id=f.character_id
+      WHERE character_search_fts MATCH ? ${filter}`)
+      .bind(q, seriesId, seriesId).first<{count:number}>();
+    const total = count?.count ?? 0;
+    return json({ query: input, seriesId: seriesId || null, count: total, limit, offset,
+      nextOffset: offset + limit < total ? offset + limit : null,
       results: result.results.map((r) => sanitizedCharacter(r, url.origin)) });
+  }
+
+  const seriesMembers = /^\/v1\/series\/([a-zA-Z0-9_-]+)\/characters$/.exec(path);
+  if (seriesMembers) {
+    const limit = clamp(url.searchParams.get("limit"), 24, 1, 50);
+    const offset = clamp(url.searchParams.get("offset"), 0, 0, 100_000);
+    const found = await env.DB.prepare("SELECT id,name FROM series WHERE id=?")
+      .bind(seriesMembers[1]).first<{id:string,name:string}>();
+    if (!found) return json({error:"Series not found"},404);
+    const results = await env.DB.prepare(`${characterSelect}
+      JOIN appearances ap ON ap.character_id=c.id
+      WHERE ap.series_id=? ORDER BY c.name,c.id LIMIT ? OFFSET ?`)
+      .bind(found.id,limit,offset).all<CharacterRow>();
+    const count = await env.DB.prepare("SELECT COUNT(*) AS count FROM appearances WHERE series_id=?")
+      .bind(found.id).first<{count:number}>();
+    return json({ series: found, count: count?.count ?? 0, limit, offset,
+      results: results.results.map(r=>sanitizedCharacter(r,url.origin)) });
   }
 
   const avatar = /^\/v1\/characters\/([a-zA-Z0-9_-]+)\/avatar\.svg$/.exec(path);
@@ -120,6 +156,22 @@ async function route(request: Request, env: Env): Promise<Response> {
     const monogram = escapeXml(initials(found.name));
     const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 480" role="img" aria-label="Ukiyora character placeholder"><defs><linearGradient id="g" x2="1" y2="1"><stop stop-color="#171220"/><stop offset="1" stop-color="#37202a"/></linearGradient></defs><rect width="360" height="480" fill="url(#g)"/><circle cx="180" cy="200" r="99" fill="#292031" stroke="#ff6846" stroke-width="3"/><text x="180" y="219" font-family="system-ui, sans-serif" font-size="75" font-weight="700" text-anchor="middle" fill="#f7f4ee">${monogram}</text><text x="180" y="409" font-family="system-ui, sans-serif" font-size="23" text-anchor="middle" fill="#ff6846">UKIYORA</text></svg>`;
     return new Response(svg, {headers:{"content-type":"image/svg+xml; charset=utf-8","cache-control":"public, max-age=86400","x-content-type-options":"nosniff"}});
+  }
+
+  const formsRoute = /^\/v1\/characters\/([a-zA-Z0-9_-]+)\/forms$/.exec(path);
+  if (formsRoute) {
+    const character = await env.DB.prepare("SELECT id,name FROM characters WHERE id=?")
+      .bind(formsRoute[1]).first<{id:string,name:string}>();
+    if (!character) return json({error:"Character not found"},404);
+    const forms = await env.DB.prepare(`SELECT id,label,kind,continuity,arc,
+      verification_status AS verificationStatus,source_ref AS sourceRef
+      FROM character_forms WHERE character_id=? ORDER BY sort_order,label`)
+      .bind(character.id).all();
+    return json({ character, forms: forms.results.map((form: any) => ({
+      ...form,
+      selectableForVerifiedBattle: form.verificationStatus === "verified" &&
+        ["baseline","transformation","state"].includes(form.kind)
+    })) });
   }
 
   const detail = /^\/v1\/characters\/([a-zA-Z0-9_-]+)$/.exec(path);
@@ -136,13 +188,26 @@ async function route(request: Request, env: Env): Promise<Response> {
       reason: "This catalogue supplies identities and form candidates, not verified combat scores. Use the Ukiyora reviewed-feats engine." }, 409);
   }
 
-  return json({ error: "Not found", endpoints: ["/health", "/v1/series", "/v1/characters?q=goku", "/v1/characters/:id"] }, 404);
+  return json({ error: "Not found", endpoints: ["/health", "/v1/series", "/v1/coverage", "/v1/characters?q=goku", "/v1/characters/:id", "/v1/characters/:id/forms"] }, 404);
 }
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const origin = request.headers.get("Origin");
     const allowed = origin && allowedOrigins(env).includes(origin) ? origin : null;
     try {
+      if (request.method === "OPTIONS") {
+        const headers = new Headers({
+          "access-control-allow-methods": "GET, OPTIONS",
+          "access-control-allow-headers": "Content-Type",
+          "access-control-max-age": "86400",
+          "cache-control": "no-store"
+        });
+        if (allowed) {
+          headers.set("access-control-allow-origin",allowed);
+          headers.set("vary","Origin");
+        }
+        return new Response(null,{status:204,headers});
+      }
       const result = await route(request, env);
       if (allowed) {
         result.headers.set("access-control-allow-origin", allowed);
