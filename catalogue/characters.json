@@ -1,0 +1,36 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-11-13T00:00:00Z",
+  "characters": [
+    {
+      "id": "goku",
+      "name": "Goku",
+      "aliases": ["Son Goku", "Kakarot"],
+      "series": "Dragon Ball Super",
+      "continuity": "Anime + Manga",
+      "imageUrl": "https://s4.anilist.co/file/anilistcdn/character/large/246-wsRRr6z1kii8.png",
+      "verificationStatus": "approved",
+      "sourceUrls": ["https://anilist.co/character/246/Gokuu-Son"],
+      "updatedAt": "2026-11-13T00:00:00Z",
+      "forms": [
+        {"id":"goku-super-saiyan-blue","name":"Super Saiyan Blue","slug":"goku-super-saiyan-blue","continuity":"Anime + Manga","imageUrl":"https://s4.anilist.co/file/anilistcdn/character/large/246-wsRRr6z1kii8.png","verificationStatus":"approved","sourceUrls":["https://dragon-ball-official.com/"]},
+        {"id":"goku-ultra-instinct","name":"Ultra Instinct","slug":"goku-ultra-instinct","continuity":"Anime + Manga","imageUrl":"https://s4.anilist.co/file/anilistcdn/character/large/246-wsRRr6z1kii8.png","verificationStatus":"approved","sourceUrls":["https://dragon-ball-official.com/"]}
+      ]
+    },
+    {
+      "id": "monkey-d-luffy",
+      "name": "Monkey D. Luffy",
+      "aliases": ["Luffy", "Straw Hat Luffy"],
+      "series": "One Piece",
+      "continuity": "Anime + Manga",
+      "imageUrl": "https://s4.anilist.co/file/anilistcdn/character/large/b40-MNypXsxSRb1R.png",
+      "verificationStatus": "approved",
+      "sourceUrls": ["https://anilist.co/character/40/Luffy-D-Monkey"],
+      "updatedAt": "2026-11-13T00:00:00Z",
+      "forms": [
+        {"id":"luffy-gear-five","name":"Gear Five","slug":"luffy-gear-five","continuity":"Anime + Manga","imageUrl":"https://s4.anilist.co/file/anilistcdn/character/large/b40-MNypXsxSRb1R.png","verificationStatus":"approved","sourceUrls":["https://one-piece.com/"]}
+      ]
+    }
+  ]
+}
+
