@@ -1,0 +1,11 @@
+/** Small structural subset of Cloudflare D1 API for standalone typechecking.
+ * Actual runtime is provided by Wrangler / Workers.
+ */
+interface D1PreparedStatement {
+  bind(...values: unknown[]): D1PreparedStatement;
+  first<T = Record<string, unknown>>(): Promise<T | null>;
+  all<T = Record<string, unknown>>(): Promise<{ results: T[] }>;
+}
+interface D1Database {
+  prepare(query: string): D1PreparedStatement;
+}
